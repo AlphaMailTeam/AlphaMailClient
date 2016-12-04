@@ -11,15 +11,14 @@ namespace AlphaMailClient
 {
     public class ClientUI
     {
+        private JaCryptPkc pkc = new JaCryptPkc();
         private Client client;
         private AlphaMailConfig config;
-        private JaCryptPkc pkc;
 
         private Dictionary<string, PublicKey> keys = new Dictionary<string, PublicKey>();
 
         public ClientUI(AlphaMailConfig config)
         {
-            pkc = new JaCryptPkc();
             this.config = config;
 
             client = new Client(config.Server, config.Port);
@@ -67,7 +66,7 @@ namespace AlphaMailClient
                         if (keys.ContainsKey(to))
                         {
                             content = pkc.Encrypt(content, keys[to]);
-                            client.SendMessage(to, ASCIIEncoding.ASCII.GetString(content));
+                            client.SendMessage(to, Convert.ToBase64String(content));
                         }
                         break;
                 }
@@ -96,7 +95,7 @@ namespace AlphaMailClient
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Message Received!");
             sb.AppendFormat("From: {0}\n", e.FromUser);
-            sb.AppendFormat("Content:\n{0}\n", ASCIIEncoding.ASCII.GetString(pkc.Decrypt(ASCIIEncoding.ASCII.GetBytes(e.Content), config.KeyPair.PublicKey, config.KeyPair.PrivateKey)));
+            sb.AppendFormat("Content:\n{0}\n", ASCIIEncoding.ASCII.GetString(pkc.Decrypt(Convert.FromBase64String(e.Content), config.KeyPair.PublicKey, config.KeyPair.PrivateKey)));
             Console.WriteLine(sb.ToString());
 
             File.AppendAllText(config.MessageFile, sb.ToString());

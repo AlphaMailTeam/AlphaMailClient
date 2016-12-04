@@ -1,4 +1,7 @@
 using System;
+using System.Text;
+
+using AlphaMailClient.Cryptography;
 
 namespace AlphaMailClient
 {

@@ -38,11 +38,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="AlphaMailConfig.cs" />
-    <Compile Include="Cryptography\PublicKey.cs" />
-    <Compile Include="Cryptography\PrivateKey.cs" />
-    <Compile Include="Cryptography\KeyPair.cs" />
-    <Compile Include="Cryptography\JaCrypto.cs" />
-    <Compile Include="Cryptography\Prng.cs" />
     <Compile Include="Client.cs" />
     <Compile Include="Events\ConnectedToServerEventArgs.cs" />
     <Compile Include="Events\DisconnectedFromServerEventArgs.cs" />
@@ -52,11 +47,16 @@
     <Compile Include="Events\PKeyMessageReceivedEventArgs.cs" />
     <Compile Include="Events\ErrorMessageReceivedEventArgs.cs" />
     <Compile Include="ClientUI.cs" />
+    <Compile Include="Cryptography\PublicKey.cs" />
+    <Compile Include="Cryptography\PrivateKey.cs" />
+    <Compile Include="Cryptography\KeyPair.cs" />
     <Compile Include="Cryptography\JaCryptPkc.cs" />
+    <Compile Include="Cryptography\JaCrypto.cs" />
+    <Compile Include="Cryptography\Prng.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
-    <Folder Include="Cryptography\" />
     <Folder Include="Events\" />
+    <Folder Include="Cryptography\" />
   </ItemGroup>
 </Project>

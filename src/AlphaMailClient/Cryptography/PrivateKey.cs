@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Numerics;
 
-namespace AlphaMailClient
+namespace AlphaMailClient.Cryptography
 {
     public class PrivateKey
     {
@@ -32,4 +32,3 @@ namespace AlphaMailClient
         }
     }
 }
-
