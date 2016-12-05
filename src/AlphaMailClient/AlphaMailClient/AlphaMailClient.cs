@@ -1,15 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
+using AlphaMailClient.Cryptography;
 using AlphaMailClient.Events;
 
-namespace AlphaMailClient
+namespace AlphaMailClient.AlphaMailClient
 {
-    public class Client
+    public class AlphaMailClient
     {
         public event EventHandler<AuthMessageReceivedEventArgs> AuthMessageReceived;
         public event EventHandler<ConnectedToServerEventArgs> ConnectedToServer;
@@ -22,13 +24,31 @@ namespace AlphaMailClient
         private BinaryReader reader;
         private BinaryWriter writer;
 
-        public Client(string host, int port)
+        public AlphaMailClient(string host, int port, string username, string password)
         {
             client = new TcpClient(host, port);
             while (!client.Connected)
                 ;
             reader = new BinaryReader(client.GetStream());
             writer = new BinaryWriter(client.GetStream());
+
+            Send("LOGIN {0} {1}", username, password);
+        }
+        public AlphaMailClient(string host, int port, string username, string password, PublicKey registrationKey)
+        {
+            client = new TcpClient(host, port);
+            while (!client.Connected)
+                ;
+            reader = new BinaryReader(client.GetStream());
+            writer = new BinaryWriter(client.GetStream());
+
+            Send("REGISTER {0} {1} {2} {3}", username, password, registrationKey.Key, registrationKey.E);
+            Send("LOGIN {0} {1}", username, password);
+        }
+
+        public void CheckForMessages()
+        {
+            Send("CHECK");
         }
 
         public void Close()
@@ -36,6 +56,27 @@ namespace AlphaMailClient
             reader.Close();
             writer.Close();
             client.Close();
+        }
+
+        private Stack<PublicKey> keys = new Stack<PublicKey>();
+        private bool requesting = false;
+        public PublicKey RequestEncryptionKey(string user, int timeOut = 10)
+        {
+            while (requesting) ;
+            requesting = true;
+            int temp = keys.Count;
+            Send("GETKEY {0}", user);
+            try
+            {
+                for (int i = 0; i < timeOut; Thread.Sleep(i++ * 1000))
+                    if (keys.Count > temp)
+                        return keys.Pop();
+                return null;
+            }
+            finally
+            {
+                requesting = false;
+            }
         }
 
         private bool sending = false;
@@ -48,25 +89,10 @@ namespace AlphaMailClient
             writer.Flush();
             sending = false;
         }
-        public void SendCheck()
+
+        public void SendMessage(AlphaMailMessage message)
         {
-            Send("CHECK");
-        }
-        public void SendGetKey(string user)
-        {
-            Send("GETKEY {0}", user);
-        }
-        public void SendLogin(string user, string pass)
-        {
-            Send("LOGIN {0} {1}", user, pass);
-        }
-        public void SendMessage(string toUser, string content)
-        {
-            Send("SEND {0} {1}", toUser, content);
-        }
-        public void SendRegister(string user, string pass, string pkey, string e)
-        {
-            Send("REGISTER {0} {1} {2} {3}", user, pass, pkey, e);
+            Send("SEND {0} {1}", message.Recipient, message.MessageInBase64);
         }
 
         public void Start()

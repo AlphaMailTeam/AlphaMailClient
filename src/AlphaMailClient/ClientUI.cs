@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
+using AlphaMailClient.AlphaMailClient;
 using AlphaMailClient.Cryptography;
 using AlphaMailClient.Events;
 
@@ -12,16 +13,14 @@ namespace AlphaMailClient
     public class ClientUI
     {
         private JaCryptPkc pkc = new JaCryptPkc();
-        private Client client;
+        private AlphaMailClient.AlphaMailClient client;
         private AlphaMailConfig config;
-
-        private Dictionary<string, PublicKey> keys = new Dictionary<string, PublicKey>();
 
         public ClientUI(AlphaMailConfig config)
         {
             this.config = config;
 
-            client = new Client(config.Server, config.Port);
+            client = new AlphaMailClient.AlphaMailClient(config.Server, config.Port, config.Username, config.Password);
             client.AuthMessageReceived += client_AuthMessageReceived;
             client.ConnectedToServer += client_ConnectedToServer;
             client.DisconnectedFromServer += client_DisconnectedFromServer;
@@ -34,10 +33,6 @@ namespace AlphaMailClient
         {
             client.Start();
 
-            client.SendRegister(config.Username, config.Password, config.KeyPair.PublicKey.Key.ToString(), config.KeyPair.PublicKey.E.ToString());
-            Thread.Sleep(1000);
-            client.SendLogin(config.Username, config.Password);
-
             while (true)
             {
                 string command = Console.ReadLine();
@@ -46,28 +41,34 @@ namespace AlphaMailClient
                 switch (parts[0].ToUpper())
                 {
                     case "CHECK":
-                        client.SendCheck();
+                        client.CheckForMessages();
                         break;
                     case "SEND":
-                        Console.Write("To: ");
-                        string to = Console.ReadLine();
-                        client.SendGetKey(to);
-                        Console.WriteLine("Use file y/anyKey: ");
+                        bool clientExists;
+                        string to;
+                        PublicKey key;
+                        do
+                        {
+                            Console.Write("To: ");
+                            to = Console.ReadLine();
+                            key = client.RequestEncryptionKey(to);
+                            clientExists = key != null;
+                        }
+                        while (!clientExists);
+
+                        Console.Write("Use file? y/any: ");
                         bool useFile = Console.ReadLine().Trim().ToLower() == "y";
                         byte[] content;
                         if (useFile)
+                        {
+                            Console.Write("File path: ");
                             content = File.ReadAllBytes(Console.ReadLine());
+                        }
                         else
-                        {
-                            Console.Write("Message: ");
                             content = ASCIIEncoding.ASCII.GetBytes(Console.ReadLine());
-                        }
+                        content = pkc.Encrypt(content, key);
 
-                        if (keys.ContainsKey(to))
-                        {
-                            content = pkc.Encrypt(content, keys[to]);
-                            client.SendMessage(to, Convert.ToBase64String(content));
-                        }
+                        client.SendMessage(new AlphaMailMessage(to, content));
                         break;
                 }
             }
@@ -102,9 +103,6 @@ namespace AlphaMailClient
         }
         private void client_PKeyMessageReceivedEventArgs(object sender, PKeyMessageReceivedEventArgs e)
         {
-            if (keys.ContainsKey(e.User))
-                keys.Remove(e.User);
-            keys.Add(e.User, e.PublicKey);
         }
 
         private string splitArray(string[] arr, int startIndex, char sep = ' ')
