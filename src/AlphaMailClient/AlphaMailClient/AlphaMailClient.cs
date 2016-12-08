@@ -3,84 +3,95 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Numerics;
 using System.Text;
 using System.Threading;
 
 using AlphaMailClient.Cryptography;
-using AlphaMailClient.Events;
 
 namespace AlphaMailClient.AlphaMailClient
 {
     public class AlphaMailClient
     {
-        public event EventHandler<AuthMessageReceivedEventArgs> AuthMessageReceived;
-        public event EventHandler<ConnectedToServerEventArgs> ConnectedToServer;
-        public event EventHandler<DisconnectedFromServerEventArgs> DisconnectedFromServer;
-        public event EventHandler<ErrorMessageReceivedEventArgs> ErrorMessageReceived;
-        public event EventHandler<MessageMessageReceivedEventArgs> MessageMessageReceived;
-        public event EventHandler<PKeyMessageReceivedEventArgs> PKeyMessageReceived;
-
+        private KeyPair keys;
         private TcpClient client;
         private BinaryReader reader;
         private BinaryWriter writer;
 
-        public AlphaMailClient(string host, int port, string username, string password)
+        public AlphaMailClient(string host, int port, KeyPair keys)
         {
+            this.keys = keys;
             client = new TcpClient(host, port);
             while (!client.Connected)
                 ;
             reader = new BinaryReader(client.GetStream());
             writer = new BinaryWriter(client.GetStream());
-
-            Send("LOGIN {0} {1}", username, password);
         }
-        public AlphaMailClient(string host, int port, string username, string password, PublicKey registrationKey)
+
+        public AlphaMailMessage[] CheckForMessages()
         {
-            client = new TcpClient(host, port);
-            while (!client.Connected)
+            List<AlphaMailMessage> result = new List<AlphaMailMessage>();
+
+            send("CHECK");
+
+            string msg;
+            while ((msg = readLine()).Trim().ToUpper() != "NOMOREMESSAGES")
+            {
+                string[] parts = msg.Split(' ');
+                byte[] content = new JaCryptPkc().Decrypt(Convert.FromBase64String(parts[3]), keys.PublicKey, keys.PrivateKey);
+                result.Add(new AlphaMailMessage(parts[1], parts[2], content));
+            }
+
+            return result.ToArray();
+        }
+
+        public AuthResultCode Login(string username, string password)
+        {
+            send("LOGIN {0} {1}", username, password);
+            return (AuthResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
+        }
+
+        public AuthResultCode Register(string username, string password)
+        {
+            send("REGISTER {0} {1} {2} {3}", username, password, keys.PublicKey.Key, keys.PublicKey.E);
+            return (AuthResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
+        }
+
+        public MessageResultCode SendMessage(string to, string message)
+        {
+            return SendMessage(to, ASCIIEncoding.ASCII.GetBytes(message));
+        }
+        public MessageResultCode SendMessage(string to, byte[] content)
+        {
+            byte[] encrypted = new JaCryptPkc().Encrypt(content, getKey(to));
+            send("SEND {0} {1}", to, Convert.ToBase64String(encrypted));
+            return (MessageResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
+        }
+
+        private PublicKey getKey(string user)
+        {
+            send("GETKEY {0}", user);
+            string[] parts = readLine().Split(' ');
+            return new PublicKey(BigInteger.Parse(parts[3]), BigInteger.Parse(parts[4]));
+        }
+
+        private bool reading = false;
+        private string readLine()
+        {
+            while (reading)
                 ;
-            reader = new BinaryReader(client.GetStream());
-            writer = new BinaryWriter(client.GetStream());
-
-            Send("REGISTER {0} {1} {2} {3}", username, password, registrationKey.Key, registrationKey.E);
-            Send("LOGIN {0} {1}", username, password);
-        }
-
-        public void CheckForMessages()
-        {
-            Send("CHECK");
-        }
-
-        public void Close()
-        {
-            reader.Close();
-            writer.Close();
-            client.Close();
-        }
-
-        private Stack<PublicKey> keys = new Stack<PublicKey>();
-        private bool requesting = false;
-        public PublicKey RequestEncryptionKey(string user, int timeOut = 10)
-        {
-            while (requesting) ;
-            requesting = true;
-            int temp = keys.Count;
-            Send("GETKEY {0}", user);
             try
             {
-                for (int i = 0; i < timeOut; Thread.Sleep(i++ * 1000))
-                    if (keys.Count > temp)
-                        return keys.Pop();
-                return null;
+                reading = true;
+                return reader.ReadString();
             }
             finally
             {
-                requesting = false;
+                reading = false;
             }
         }
-
         private bool sending = false;
-        public void Send(string msg, params object[] args)
+        private void send(string msg, params object[] args)
         {
             while (sending)
                 ;
@@ -89,101 +100,5 @@ namespace AlphaMailClient.AlphaMailClient
             writer.Flush();
             sending = false;
         }
-
-        public void SendMessage(AlphaMailMessage message)
-        {
-            Send("SEND {0} {1}", message.Recipient, message.MessageInBase64);
-        }
-
-        public void Start()
-        {
-            new Thread(() => listenThread()).Start();
-        }
-
-        private void listenThread()
-        {
-            try
-            {
-                while (true)
-                {
-                    string msg = reader.ReadString();
-                    if (msg == "PING")
-                        Send("PONG");
-                    else
-                        parseMsg(msg);
-                }
-            }
-            catch (IOException)
-            {
-                OnDisconnectedFromServer(new DisconnectedFromServerEventArgs());
-            }
-        }
-
-        private void parseMsg(string msg)
-        {
-            string[] parts = msg.Split(' ');
-
-            switch (parts[0].ToUpper())
-            {
-                case "AUTH":
-                    OnAuthMessageReceived(new AuthMessageReceivedEventArgs(msg, splitArray(parts, 1)));
-                    break;
-                case "ERROR":
-                    OnErrorMessageReceived(new ErrorMessageReceivedEventArgs(msg, splitArray(parts, 1)));
-                    break;
-                case "MESSAGE":
-                    OnMessageMessageReceived(new MessageMessageReceivedEventArgs(msg, parts[1], splitArray(parts, 2)));
-                    break;
-                case "PKEY":
-                    OnPKeyMessageReceived(new PKeyMessageReceivedEventArgs(msg, parts[1], parts[2], parts[3]));
-                    break;
-            }
-        }
-
-        private string splitArray(string[] arr, int startIndex, char sep = ' ')
-        {
-            StringBuilder sb = new StringBuilder();
-            for (int i = startIndex; i < arr.Length; i++)
-                sb.AppendFormat("{0}{1}", arr[i], sep);
-            return sb.ToString();
-        }
-
-        protected virtual void OnAuthMessageReceived(AuthMessageReceivedEventArgs e)
-        {
-            var handler = AuthMessageReceived;
-            if (handler != null)
-                handler(this, e);
-        }
-        protected virtual void OnConnectedToServer(ConnectedToServerEventArgs e)
-        {
-            var handler = ConnectedToServer;
-            if (handler != null)
-                handler(this, e);
-        }
-        protected virtual void OnDisconnectedFromServer(DisconnectedFromServerEventArgs e)
-        {
-            var handler = DisconnectedFromServer;
-            if (handler != null)
-                handler(this, e);
-        }
-        protected virtual void OnErrorMessageReceived(ErrorMessageReceivedEventArgs e)
-        {
-            var handler = ErrorMessageReceived;
-            if (handler != null)
-                handler(this, e);
-        }
-        protected virtual void OnMessageMessageReceived(MessageMessageReceivedEventArgs e)
-        {
-            var handler = MessageMessageReceived;
-            if (handler != null)
-                handler(this, e);
-        }
-        protected virtual void OnPKeyMessageReceived(PKeyMessageReceivedEventArgs e)
-        {
-            var handler = PKeyMessageReceived;
-            if (handler != null)
-                handler(this, e);
-        }
     }
 }
-

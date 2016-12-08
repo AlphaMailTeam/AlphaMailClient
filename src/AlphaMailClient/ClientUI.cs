@@ -6,104 +6,55 @@ using System.Threading;
 
 using AlphaMailClient.AlphaMailClient;
 using AlphaMailClient.Cryptography;
-using AlphaMailClient.Events;
+using AlphaMailClient.Exceptions;
 
 namespace AlphaMailClient
 {
     public class ClientUI
     {
-        private JaCryptPkc pkc = new JaCryptPkc();
-        private AlphaMailClient.AlphaMailClient client;
         private AlphaMailConfig config;
+        private AlphaMailClient.AlphaMailClient client;
 
         public ClientUI(AlphaMailConfig config)
         {
             this.config = config;
-
-            client = new AlphaMailClient.AlphaMailClient(config.Server, config.Port, config.Username, config.Password);
-            client.AuthMessageReceived += client_AuthMessageReceived;
-            client.ConnectedToServer += client_ConnectedToServer;
-            client.DisconnectedFromServer += client_DisconnectedFromServer;
-            client.ErrorMessageReceived += client_ErrorMessageReceived;
-            client.MessageMessageReceived += client_MessageMessageReceived;
-            client.PKeyMessageReceived += client_PKeyMessageReceivedEventArgs;
         }
 
         public void Start()
         {
-            client.Start();
+            client = new AlphaMailClient.AlphaMailClient(config.Server, config.Port, config.KeyPair);
+            AuthResultCode registerCode = client.Register(config.Username, config.Password);
+            AuthResultCode loginCode = client.Login(config.Username, config.Password);
 
-            while (true)
+            if (registerCode == AuthResultCode.RegisterBadUser && loginCode == AuthResultCode.LoginBadUser)
+                throw new UserAlreadyRegisteredException(config.Username);
+            if (loginCode != AuthResultCode.LoginSuccess)
+                throw new IncorrectLoginException(config.Username);
+        }
+
+        public void CheckMail(TextWriter output)
+        {
+            var mail = client.CheckForMessages();
+            if (mail.Length <= 0)
+                output.WriteLine("No new messages!");
+            foreach (var message in mail)
             {
-                string command = Console.ReadLine();
-                string[] parts = command.Split(' ');
-
-                switch (parts[0].ToUpper())
-                {
-                    case "CHECK":
-                        client.CheckForMessages();
-                        break;
-                    case "SEND":
-                        bool clientExists;
-                        string to;
-                        PublicKey key;
-                        do
-                        {
-                            Console.Write("To: ");
-                            to = Console.ReadLine();
-                            key = client.RequestEncryptionKey(to);
-                            clientExists = key != null;
-                        }
-                        while (!clientExists);
-
-                        Console.Write("Use file? y/any: ");
-                        bool useFile = Console.ReadLine().Trim().ToLower() == "y";
-                        byte[] content;
-                        if (useFile)
-                        {
-                            Console.Write("File path: ");
-                            content = File.ReadAllBytes(Console.ReadLine());
-                        }
-                        else
-                            content = ASCIIEncoding.ASCII.GetBytes(Console.ReadLine());
-                        content = pkc.Encrypt(content, key);
-
-                        client.SendMessage(new AlphaMailMessage(to, content));
-                        break;
-                }
+                output.WriteLine(string.Format("From: {0}", message.Sender));
+                output.WriteLine(string.Format("To {0}", message.Recipient));
+                output.WriteLine(string.Format("Content:\n{0}", message.MessageString));
             }
+            output.Flush();
         }
 
-        private void client_AuthMessageReceived(object sender, AuthMessageReceivedEventArgs e)
+        public void SendMessage(string to, byte[] content)
         {
-            Console.WriteLine("Authenticated for {0}!", e.User);
+            client.SendMessage(to, content);
         }
-        private void client_ConnectedToServer(object sender, ConnectedToServerEventArgs e)
+        public void SendMessage(string to, string content)
         {
-            Console.WriteLine("Connected to server! Use LOGIN/REGISTER commands to authenticate!");
+            client.SendMessage(to, content);
         }
-        private void client_DisconnectedFromServer(object sender, DisconnectedFromServerEventArgs e)
-        {
-            Console.WriteLine("Disconnected from server!");
-            client.Close();
-        }
-        private void client_ErrorMessageReceived(object sender, ErrorMessageReceivedEventArgs e)
-        {
-            Console.WriteLine("Error: {0}", e.Error);
-        }
-        private void client_MessageMessageReceived(object sender, MessageMessageReceivedEventArgs e)
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("Message Received!");
-            sb.AppendFormat("From: {0}\n", e.FromUser);
-            sb.AppendFormat("Content:\n{0}\n", ASCIIEncoding.ASCII.GetString(pkc.Decrypt(Convert.FromBase64String(e.Content), config.KeyPair.PublicKey, config.KeyPair.PrivateKey)));
-            Console.WriteLine(sb.ToString());
 
-            File.AppendAllText(config.MessageFile, sb.ToString());
-        }
-        private void client_PKeyMessageReceivedEventArgs(object sender, PKeyMessageReceivedEventArgs e)
-        {
-        }
 
         private string splitArray(string[] arr, int startIndex, char sep = ' ')
         {

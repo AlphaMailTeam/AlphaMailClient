@@ -8,7 +8,9 @@ namespace AlphaMailClient.AlphaMailClient
     public class AlphaMailMessage
     {
         public string Recipient { get; set; }
+        public string Sender { get; set; }
         public byte[] Message { get; set; }
+        public string MessageString { get { return ASCIIEncoding.ASCII.GetString(Message); } }
         public string MessageInBase64 {  get { return Convert.ToBase64String(Message); } }
 
         public AlphaMailMessage()
@@ -25,6 +27,18 @@ namespace AlphaMailClient.AlphaMailClient
         }
         public AlphaMailMessage(string recipient, string message)
         {
+            Recipient = recipient;
+            Message = ASCIIEncoding.ASCII.GetBytes(message);
+        }
+        public AlphaMailMessage(string sender, string recipient, byte[] message)
+        {
+            Sender = sender;
+            Recipient = recipient;
+            Message = message;
+        }
+        public AlphaMailMessage(string sender, string recipient, string message)
+        {
+            Sender = sender;
             Recipient = recipient;
             Message = ASCIIEncoding.ASCII.GetBytes(message);
         }
