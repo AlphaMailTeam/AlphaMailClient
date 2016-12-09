@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 
@@ -13,6 +14,8 @@ namespace AlphaMailClient.AlphaMailClient
 {
     public class AlphaMailClient
     {
+        public const string HASH_ALGO = "SHA512";
+
         private KeyPair keys;
         private TcpClient client;
         private BinaryReader reader;
@@ -47,7 +50,9 @@ namespace AlphaMailClient.AlphaMailClient
 
         public AuthResultCode Login(string username, string password)
         {
-            send("LOGIN {0} {1}", username, password);
+            send("AUTHKEY {0}", username);
+            string randStr = readLine().Split(' ')[1];
+            send("LOGIN {0} {1}", username, generateToken(hashString(password, HASH_ALGO), randStr));
             return (AuthResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
         }
 
@@ -73,6 +78,16 @@ namespace AlphaMailClient.AlphaMailClient
             send("GETKEY {0}", user);
             string[] parts = readLine().Split(' ');
             return new PublicKey(BigInteger.Parse(parts[3]), BigInteger.Parse(parts[4]));
+        }
+
+        private string generateToken(string passHash, string randChars)
+        {
+            return hashString(passHash + randChars, HASH_ALGO);
+        }
+
+        private string hashString(string text, string method)
+        {
+            return BitConverter.ToString(((HashAlgorithm)CryptoConfig.CreateFromName(method)).ComputeHash(new UTF8Encoding().GetBytes(text))).Replace("-", string.Empty).ToLower();
         }
 
         private bool reading = false;
