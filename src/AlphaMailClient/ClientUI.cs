@@ -14,10 +14,17 @@ namespace AlphaMailClient
     {
         private AlphaMailConfig config;
         private AlphaMailClient.AlphaMailClient client;
+        private TextWriter output;
 
         public ClientUI(AlphaMailConfig config)
         {
             this.config = config;
+            if (config.MessageFile != string.Empty && config.MessageFile != null)
+            {
+                var stream = new FileStream(config.MessageFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+                stream.Position = stream.Length == 0 ? stream.Length : stream.Length - 1;
+                output = new StreamWriter(stream);
+            }
         }
 
         public void Start()
@@ -32,29 +39,47 @@ namespace AlphaMailClient
                 throw new IncorrectLoginException(config.Username);
         }
 
-        public void CheckMail(TextWriter output)
+        public void CheckMail()
         {
             var mail = client.CheckForMessages();
             if (mail.Length <= 0)
-                output.WriteLine("No new messages!");
+                Console.WriteLine("No new messages!");
             foreach (var message in mail)
             {
-                output.WriteLine(string.Format("From: {0}", message.Sender));
-                output.WriteLine(string.Format("To {0}", message.Recipient));
-                output.WriteLine(string.Format("Content:\n{0}", message.MessageString));
+                dualWrite(string.Format("From: {0}", message.Sender));
+                dualWrite(string.Format("To: {0}", message.Recipient));
+                dualWrite(string.Format("Content:\n{0}", message.MessageString));
             }
-            output.Flush();
         }
 
         public void SendMessage(string to, byte[] content)
         {
-            client.SendMessage(to, content);
+            switch (client.SendMessage(to, content))
+            {
+                case MessageResultCode.MessageSuccess:
+                    Console.WriteLine("Message successfully sent!");
+                    break;
+                case MessageResultCode.NoUser:
+                    Console.WriteLine("Could not send, no such user, {0}", to);
+                    break;
+            }
         }
         public void SendMessage(string to, string content)
         {
             client.SendMessage(to, content);
         }
 
+        private void dualWrite(string line)
+        {
+            if (output != null)
+            {
+                output.WriteLine(line);
+                output.Flush();
+            }
+
+            Console.WriteLine(line);
+            Console.Out.Flush();
+        }
 
         private string splitArray(string[] arr, int startIndex, char sep = ' ')
         {

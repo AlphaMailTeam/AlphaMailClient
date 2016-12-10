@@ -10,7 +10,6 @@ namespace AlphaMailClient
     {
         public string AlphaMailConfigFilePath { get; set; }
         public AlphaMailClientMode AlphaMailClientMode { get; set; }
-        public TextWriter OutputStream { get; set; }
 
         public string ToUser { get; set; }
         public byte[] Message { get; set; }
@@ -18,7 +17,6 @@ namespace AlphaMailClient
         public AlphaMailClientConfig()
         {
             AlphaMailClientMode = AlphaMailClientMode.None;
-            OutputStream = Console.Out;
         }
 
         public void Execute()
@@ -31,7 +29,7 @@ namespace AlphaMailClient
             switch (AlphaMailClientMode)
             {
                 case AlphaMailClientMode.Check:
-                    client.CheckMail(OutputStream);
+                    client.CheckMail();
                     break;
                 case AlphaMailClientMode.Send:
                     client.SendMessage(ToUser, Message);

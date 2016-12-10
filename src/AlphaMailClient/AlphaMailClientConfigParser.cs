@@ -32,10 +32,6 @@ namespace AlphaMailClient
                     case "--message":
                         config.Message = File.ReadAllBytes(expectData("[FILE]"));
                         break;
-                    case "-o":
-                    case "--output":
-                        config.OutputStream = File.CreateText(expectData("[FILE]"));
-                        break;
                     case "-r":
                     case "--recipient":
                         config.ToUser = expectData("[USER]");
@@ -63,7 +59,6 @@ namespace AlphaMailClient
 
             Console.WriteLine("\nData:");
             Console.WriteLine("-m --message [FILE]           Specifies the message from a file.");
-            Console.WriteLine("-o --output [FIlE]            Specifies the file to send messages to.");
             Console.WriteLine("-r --recipient [USER]         Specifies the desired recipient of a message.");
             die();
         }
