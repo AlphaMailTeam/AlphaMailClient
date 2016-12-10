@@ -41,7 +41,11 @@ namespace AlphaMailClient.AlphaMailClient
             while ((msg = readLine()).Trim().ToUpper() != "NOMOREMESSAGES")
             {
                 string[] parts = msg.Split(' ');
-                byte[] content = new JaCryptPkc().Decrypt(Convert.FromBase64String(parts[3]), keys.PublicKey, keys.PrivateKey);
+                string base64String = parts[3];
+                int append = base64String.Length % 4;
+                if (append > 0)
+                    base64String += new string('=', 4 - append);
+                byte[] content = new JaCryptPkc().Decrypt(Convert.FromBase64String(base64String), keys.PublicKey, keys.PrivateKey);
                 result.Add(new AlphaMailMessage(parts[1], parts[2], content));
             }
 
