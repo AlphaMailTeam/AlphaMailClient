@@ -11,8 +11,9 @@ namespace AlphaMailClient
         public string AlphaMailConfigFilePath { get; set; }
         public AlphaMailClientMode AlphaMailClientMode { get; set; }
 
-        public string ToUser { get; set; }
         public byte[] Message { get; set; }
+        public string Subject { get; set; }
+        public string ToUser { get; set; }
 
         public AlphaMailClientConfig()
         {
@@ -32,7 +33,7 @@ namespace AlphaMailClient
                     client.CheckMail();
                     break;
                 case AlphaMailClientMode.Send:
-                    client.SendMessage(ToUser, Message);
+                    client.SendMessage(ToUser, Subject, Message);
                     break;
             }
         }
@@ -49,8 +50,10 @@ namespace AlphaMailClient
                 case AlphaMailClientMode.Send:
                     if (ToUser == string.Empty || ToUser == null)
                         ToUser = promptForString("Enter recipient username: ");
+                    if (Subject == string.Empty || Subject == null)
+                        Subject = promptForString("Enter message subject: ");
                     if (Message == null)
-                        Message = ASCIIEncoding.ASCII.GetBytes(promptForString("Enter the message: "));
+                        Message = ASCIIEncoding.ASCII.GetBytes(promptForString("Enter the message:\n"));
                     break;
             }
         }

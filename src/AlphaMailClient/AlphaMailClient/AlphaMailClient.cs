@@ -41,12 +41,10 @@ namespace AlphaMailClient.AlphaMailClient
             while ((msg = readLine()).Trim().ToUpper() != "NOMOREMESSAGES")
             {
                 string[] parts = msg.Split(' ');
-                string base64String = parts[3];
-                int append = base64String.Length % 4;
-                if (append > 0)
-                    base64String += new string('=', 4 - append);
-                byte[] content = new JaCryptPkc().Decrypt(Convert.FromBase64String(base64String), keys.PublicKey, keys.PrivateKey);
-                result.Add(new AlphaMailMessage(parts[1], parts[2], content));
+                byte[] content = new JaCryptPkc().Decrypt(Convert.FromBase64String(parts[4]), keys.PublicKey, keys.PrivateKey);
+                byte[] subjectBytes = new JaCryptPkc().Decrypt(Convert.FromBase64String(parts[3]), keys.PublicKey, keys.PrivateKey);
+                string subject = ASCIIEncoding.ASCII.GetString(subjectBytes);
+                result.Add(new AlphaMailMessage(parts[1], subject, parts[2], content));
             }
 
             return result.ToArray();
@@ -66,14 +64,16 @@ namespace AlphaMailClient.AlphaMailClient
             return (AuthResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
         }
 
-        public MessageResultCode SendMessage(string to, string message)
+        public MessageResultCode SendMessage(string to, string subject, string message)
         {
-            return SendMessage(to, ASCIIEncoding.ASCII.GetBytes(message));
+            return SendMessage(to, ASCIIEncoding.ASCII.GetBytes(subject), ASCIIEncoding.ASCII.GetBytes(message));
         }
-        public MessageResultCode SendMessage(string to, byte[] content)
+        public MessageResultCode SendMessage(string to, byte[] subject, byte[] content)
         {
-            byte[] encrypted = new JaCryptPkc().Encrypt(content, getKey(to));
-            send("SEND {0} {1}", to, Convert.ToBase64String(encrypted));
+            var key = getKey(to);
+            byte[] encryptedContent = new JaCryptPkc().Encrypt(content, key);
+            byte[] encryptedSubject = new JaCryptPkc().Encrypt(subject, key);
+            send("SEND {0} {1} {2}", to, Convert.ToBase64String(encryptedSubject), Convert.ToBase64String(encryptedContent));
             return (MessageResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
         }
 

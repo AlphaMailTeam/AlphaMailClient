@@ -48,13 +48,14 @@ namespace AlphaMailClient
             {
                 dualWrite(string.Format("From: {0}", message.Sender));
                 dualWrite(string.Format("To: {0}", message.Recipient));
+                dualWrite(string.Format("Subject: {0}", message.Subject));
                 dualWrite(string.Format("Content:\n{0}", message.MessageString));
             }
         }
 
-        public void SendMessage(string to, byte[] content)
+        public void SendMessage(string to, string subject, byte[] content)
         {
-            switch (client.SendMessage(to, content))
+            switch (client.SendMessage(to, ASCIIEncoding.ASCII.GetBytes(subject), content))
             {
                 case MessageResultCode.MessageSuccess:
                     Console.WriteLine("Message successfully sent!");
@@ -64,9 +65,9 @@ namespace AlphaMailClient
                     break;
             }
         }
-        public void SendMessage(string to, string content)
+        public void SendMessage(string to, string subject, string content)
         {
-            client.SendMessage(to, content);
+            client.SendMessage(to, subject, content);
         }
 
         private void dualWrite(string line)
@@ -79,14 +80,6 @@ namespace AlphaMailClient
 
             Console.WriteLine(line);
             Console.Out.Flush();
-        }
-
-        private string splitArray(string[] arr, int startIndex, char sep = ' ')
-        {
-            StringBuilder sb = new StringBuilder();
-            for (int i = startIndex; i < arr.Length; i++)
-                sb.AppendFormat("{0}{1}", arr[i], sep);
-            return sb.ToString();
         }
     }
 }
