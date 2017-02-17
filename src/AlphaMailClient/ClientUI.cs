@@ -32,6 +32,7 @@ namespace AlphaMailClient
             client = new AlphaMailClient.AlphaMailClient(config.Server, config.Port, config.KeyPair);
             AuthResultCode registerCode = client.Register(config.Username, config.Password);
             AuthResultCode loginCode = client.Login(config.Username, config.Password);
+            client.UpdateAccount(config.Username, config.Password, config.KeyPair.PublicKey);
 
             if (registerCode == AuthResultCode.RegisterBadUser && loginCode == AuthResultCode.LoginBadUser)
                 throw new UserAlreadyRegisteredException(config.Username);

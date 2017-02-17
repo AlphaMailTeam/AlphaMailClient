@@ -21,5 +21,10 @@ namespace AlphaMailClient.AlphaMailClient
         Success,
         NoUser
     }
+    public enum UpdateResultCode
+    {
+        BadUser,
+        Success
+    }
 }
 

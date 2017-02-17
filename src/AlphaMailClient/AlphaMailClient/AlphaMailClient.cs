@@ -77,6 +77,12 @@ namespace AlphaMailClient.AlphaMailClient
             return (MessageResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
         }
 
+        public UpdateResultCode UpdateAccount(string username, string password, PublicKey key)
+        {
+            send("UPDATE {0} {1} {2} {3}", username, password, key.Key, key.E);
+            return (UpdateResultCode)Convert.ToInt32(readLine().Split(' ')[1]);
+        }
+
         private PublicKey getKey(string user)
         {
             send("GETKEY {0}", user);
